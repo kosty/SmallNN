@@ -1,7 +1,7 @@
 package com;
 
 import static com.FileUtil.filenames;
-import static com.TrainNN.featureNormalize;
+import static com.SingleLayerNetwork.featureNormalize;
 
 import java.awt.Canvas;
 import java.awt.Graphics;
@@ -20,7 +20,7 @@ import javax.vecmath.GMatrix;
 
 import org.junit.Test;
 
-import com.TrainNN.Normalized;
+import com.SingleLayerNetwork.Normalized;
 
 public class ImageUtil {
     public static final int SMALL_HEIGHT = 5;
