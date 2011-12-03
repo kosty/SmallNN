@@ -28,9 +28,9 @@ public class ImageUtil {
     public static final int HEIGHT = 60;
     public static final int WIDTH = 72;
 
-    public static final int imageSize = WIDTH * HEIGHT;
+    public static final int IMAGE_SIZE = WIDTH * HEIGHT;
     
-    double[][] x = new double[filenames.length][imageSize];
+    double[][] x = new double[filenames.length][IMAGE_SIZE];
 
     @Test
     public void test() throws Exception {
