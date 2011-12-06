@@ -12,7 +12,7 @@ import org.jfree.data.xy.XYSeriesCollection;
 
 public class ChartUtil {
     
-    public static void showChart(double[] trainingCosts) throws IOException {
+    public static void showChart(Double[] trainingCosts) throws IOException {
         XYSeries series = new XYSeries("Cost of predictions");
         for(int i=0;i<trainingCosts.length;i++){
             series.add(i, trainingCosts[i]);

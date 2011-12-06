@@ -25,9 +25,9 @@ public class NNMain {
         long time = System.currentTimeMillis();
         Normalized nrm = featureNormalize(data.x);
         
-        int numberOfSteps = 2;
+        int numberOfSteps = 2000;
         /* Regularization cost: 1 */
-        double[] trainingCosts = nn.train(nrm.values, data.y, 1., numberOfSteps);
+        Double[] trainingCosts = nn.train(nrm.values, data.y, 1., numberOfSteps);
         long traintime = System.currentTimeMillis() - time;
         System.out.println("Training time: " +  (traintime / 1000) + " sec; " + (traintime / numberOfSteps) + " sec per train");
 

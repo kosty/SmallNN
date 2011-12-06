@@ -31,12 +31,10 @@ public class SingleLayerNetwork {
 //    public static final int NUM_TRIES = 2;
     Random r = new Random();
 
-    int features = 40;
+    int inputSize = IMAGE_SIZE;
     int classes = 2;
+    int features = 40;
 
-//    public static final int IMAGE_SIZE = WIDTH * HEIGHT;
-//    public static final int SMALL_IMAGE_SIZE = SMALL_WIDTH * SMALL_HEIGHT;
-    
     final GMatrix theta1;
     final GMatrix theta2;
     
@@ -46,8 +44,6 @@ public class SingleLayerNetwork {
     GMatrix Z3;
     GMatrix A3;
 
-//    int m = 0; 
-    int inputSize = IMAGE_SIZE;
     
     /* Learning rate for gradient descent */
     double alpha = 0.001;
@@ -77,31 +73,40 @@ public class SingleLayerNetwork {
         this.inputSize = this.theta1.getNumCol()-1;
     }
 
-    public double[] train(GMatrix x, GMatrix y, double lambda, int numberOfSteps) throws Exception {
+    public Double[] train(GMatrix x, GMatrix y, double lambda, int numberOfSteps) throws Exception {
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
-        double[] stepCosts = new double[numberOfSteps];
+//        double[] stepCosts = new double[numberOfSteps];
+        List<Double> stepCosts = new ArrayList<Double>();
 
-//        double previousCost = Double.MAX_VALUE;
-        for (int k = 0; k < numberOfSteps; k++) {
+        double previousCost = Double.MAX_VALUE;
+        double diff = Double.MAX_VALUE;
+//        for (int k = 0; k < numberOfSteps; k++) {
+        int k = 0;
+        while (diff > 1e-9){
             activate(x);
-            double J = computeCost(x, y, lambda);
+            double cost = computeCost(x, y, lambda);
             GMatrix[] gradients = computeGradients(x, y, lambda);
-//            double diff = previousCost - step.cost;
-//            if (diff < 0)
-//                System.out.println("! OLOLO <!" + " " + diff);
-//            previousCost = step.cost;
+            diff = previousCost - cost;
+            if (diff < 1e-9){
+                System.out.println("! OLOLO <!" + " " + diff);
+                continue;
+            }
+            previousCost = cost;
 
             if (numericGradients)
                 compareWithNumericGradients(gradients[0], gradients[1], x, y, theta1, theta2, 1);
 
-            stepCosts[k] = J;
+//            stepCosts[k] = cost;
+            stepCosts.add(cost);
 
             theta1.sub(scalarProduct(gradients[0], alpha));
             theta2.sub(scalarProduct(gradients[1], alpha));
+            k++;
         }
-
-        return stepCosts;
+        Double[] result = new Double[stepCosts.size()];
+        stepCosts.toArray(result);
+        return result;
     }
 
     private void compareWithNumericGradients(GMatrix grad1, GMatrix grad2, GMatrix x_mtx, GMatrix y_mtx,
