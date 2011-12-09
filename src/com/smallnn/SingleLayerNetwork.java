@@ -73,11 +73,10 @@ public class SingleLayerNetwork implements NeuralNetwork {
         this.inputSize = this.theta1.getNumCol()-1;
     }
 
-    /* (non-Javadoc)
-     * @see com.smallnn.NeuralNetwork#train(javax.vecmath.GMatrix, javax.vecmath.GMatrix, double)
-     */
+
     @Override
     public Double[] train(GMatrix x, GMatrix y, double lambda, double alpha) throws Exception {
+
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
 //        double[] stepCosts = new double[numberOfSteps];
@@ -87,6 +86,7 @@ public class SingleLayerNetwork implements NeuralNetwork {
         double diff = Double.MAX_VALUE;
 //        for (int k = 0; k < numberOfSteps; k++) {
         int k = 0;
+
         while (diff > COST_PRECISSION){
             double cost = computeCost(x, y, lambda);
             GMatrix[] gradients = computeGradients(x, y, lambda);
