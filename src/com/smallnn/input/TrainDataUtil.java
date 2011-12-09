@@ -1,101 +1,161 @@
 package com.smallnn.input;
 
+import static com.smallnn.AlgebraUtil.featureNormalize;
+import static com.smallnn.input.FileUtil.dirFilter;
 import static com.smallnn.input.FileUtil.find;
 import static com.smallnn.input.FileUtil.pngFilter;
 import static com.smallnn.input.FileUtil.tildeExpand;
-import static com.smallnn.input.ImageUtil.HEIGHT;
-import static com.smallnn.input.ImageUtil.IMAGE_SIZE;
-import static com.smallnn.input.ImageUtil.SMALL_HEIGHT;
-import static com.smallnn.input.ImageUtil.SMALL_WIDTH;
-import static com.smallnn.input.ImageUtil.WIDTH;
-import static com.smallnn.input.ImageUtil.imageToGrayscale;
-import static com.smallnn.input.ImageUtil.resize;
+import static com.smallnn.input.ImageUtil.imageToLongArray;
+import static com.smallnn.input.ImageUtil.readResizeImage;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.imageio.ImageIO;
 import javax.vecmath.GMatrix;
 
+import com.smallnn.AlgebraUtil.Normalized;
+import com.smallnn.input.ImageUtil.Resolution;
+
 public class TrainDataUtil {
-    
-    public static final String dataPrefix = "~/References/barsDetect";
+
     public static final String TRAINING_DIR = "training";
     public static final String VALIDATION_DIR = "verify";
     public static final String TEST_DIR = "test";
-    
-    public static File getDataDir(String set, String cluster, String resolution){
-        return tildeExpand(dataPrefix+"/"+set+"/"+cluster+"/"+resolution);
+
+    public static List<File> getSubDirs(String path) {
+        File[] listFiles = tildeExpand(path).listFiles(dirFilter);
+        return Arrays.asList(listFiles);
     }
 
-    public static File getDataDir(String set){
-        return tildeExpand(dataPrefix+"/"+set);
-    }
-    
-    public static double[] longToDoubleArray(long[] arr){
+    public static double[] longToDoubleArray(long[] arr) {
         double[] result = new double[arr.length];
-        for(int i=0;i<arr.length;i++){
-            result[i] = (double)arr[i];
+        for (int i = 0; i < arr.length; i++) {
+            result[i] = (double) arr[i];
         }
         return result;
     }
     
-    public static Data getMixedData() throws Exception{
-        List<File> trainingFileSet = interleaveEntries();
-        int inputLayerSize = SMALL_WIDTH*SMALL_HEIGHT;
-        int classes = 2;
-        int m=trainingFileSet.size();
-        double[] x = new double[m*inputLayerSize];
-        double[] y = new double[m*classes];
+    public static Data getSingleClassData(String kitPath, Resolution orig, int boostLevel) throws Exception {
+        List<File> trainingFileSet = interleaveTrainingClasses(kitPath, TRAINING_DIR, orig.width + "x" + orig.height);
+        int inputLayerSize = orig.width * orig.height;
+        int m = trainingFileSet.size()*boostLevel;
         
-        for(int i=0;i<m;i++){
-            File trainFile = trainingFileSet.get(i%trainingFileSet.size());
-            double[] tmparr = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(trainFile), SMALL_WIDTH, SMALL_HEIGHT))); 
-            for (int j=0;j<inputLayerSize;j++){
-                x[i*inputLayerSize+j] = tmparr[j];
-            }
-            y[i*classes]   = i%2 == 0 ? 1. : 0.;
-            y[i*classes+1] = i%2 == 0 ? 0. : 1.;
+        double[] x = new double[m * inputLayerSize];
+        double[] y = new double[m];
+        
+        for (int i = 0; i < m; i++) {
+            File f = trainingFileSet.get(i % trainingFileSet.size());
+            double[] image = longToDoubleArray(imageToLongArray(ImageIO.read(f)));
+            System.arraycopy(image, 0, x, i * inputLayerSize, inputLayerSize);
+
+            y[i] = i%2 == 0 ? 1. : 0.;
         }
         
+        return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, 1, y));
+    }
+
+    public static Data getData(String kitPath, Resolution orig, Resolution fin, int boostLevel) throws Exception {
+        int classes = getClassesNumber(kitPath);
+        List<File> trainingFileSet = interleaveTrainingClasses(kitPath, TRAINING_DIR, orig.width + "x" + orig.height);
+        int inputLayerSize = fin.width * fin.height;
+
+        int m = trainingFileSet.size() * boostLevel;
+        double[] x = new double[m * inputLayerSize];
+        double[] y = new double[m * classes];
+
+        for (int i = 0; i < m; i++) {
+            File f = trainingFileSet.get(i % trainingFileSet.size());
+            double[] image = longToDoubleArray(readResizeImage(ImageIO.read(f), orig, fin));
+            System.arraycopy(image, 0, x, i * inputLayerSize, inputLayerSize);
+
+            double[] expectedClass = new double[classes];
+            Arrays.fill(expectedClass, 0.);
+            expectedClass[i % classes] = 1.;
+            System.arraycopy(expectedClass, 0, y, i * classes, classes);
+        }
         return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, classes, y));
     }
-    
-    public static GMatrix readData(File f) throws Exception{
-        double[] data = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(f), SMALL_WIDTH, SMALL_HEIGHT)));
-        return new GMatrix(1, SMALL_WIDTH*SMALL_HEIGHT, data);
+
+    public static GMatrix readResizeData(BufferedImage img, Resolution orig, Resolution fin) throws Exception {
+        double[] image = longToDoubleArray(readResizeImage(img, orig, fin));
+        return new GMatrix(1, fin.width * fin.height, image);
     }
-    
-    
-    public static List<File> interleaveEntries(){
-        List<File> bars = find(getDataDir(TRAINING_DIR, "bars", "72x60"), pngFilter);
-        List<File> nonBars = find(getDataDir(TRAINING_DIR, "non-bars", "72x60"), pngFilter);
+
+    public static TestData getTestData(String kitPath, Resolution orig, Resolution fin, Normalized nrm)
+            throws Exception {
+        List<File> files = interleaveTrainingClasses(kitPath, TEST_DIR, orig.width + "x" + orig.height);
+        GMatrix[] x_norms = new GMatrix[files.size()];
+        GMatrix[] ys = new GMatrix[files.size()];
+        int classes = TrainDataUtil.getClassesNumber(kitPath);
+        for (int i = 0; i < files.size(); i++) {
+            BufferedImage img = ImageIO.read(files.get(i));
+
+            x_norms[i] = featureNormalize(readResizeData(img, orig, fin), nrm);
+
+            double[] y_test = new double[classes];
+            Arrays.fill(y_test, 0.);
+            y_test[i % classes] = 1.;
+            ys[i] = new GMatrix(1, classes, y_test);
+        }
+        return new TestData(x_norms, ys, files);
+    }
+
+    public static int getClassesNumber(String pathPrefix) {
+        List<File> testClasses = getSubDirs(pathPrefix + "/" + TEST_DIR);
+        List<File> trainingClasses = getSubDirs(pathPrefix + "/" + TRAINING_DIR);
+        assert testClasses.size() == trainingClasses.size();
+        return trainingClasses.size();
+    }
+
+    public static List<File> interleaveTrainingClasses(String kitPath, String set, String resolution) {
+        List<File> trainingClasses = getSubDirs(kitPath + "/" + set);
+        List<File> refClass = find(new File(trainingClasses.get(0), resolution), pngFilter);
+        System.out.println("Reference class of training set: " + trainingClasses.get(0).getAbsolutePath());
+
+        List<List<File>> otherClasses = new ArrayList<List<File>>();
+        for (int i = 1; i < trainingClasses.size(); i++) {
+            otherClasses.add(find(new File(trainingClasses.get(i), resolution), pngFilter));
+        }
         List<File> interleaved = new ArrayList<File>();
-        for(int i=0;i<bars.size();i++){
-            interleaved.add(bars.get(i));
-            interleaved.add(nonBars.get(i%nonBars.size()));
+        for (int i = 0; i < refClass.size(); i++) {
+            interleaved.add(refClass.get(i));
+            for (List<File> otherClass : otherClasses)
+                interleaved.add(otherClass.get(i % otherClass.size()));
         }
         return interleaved;
     }
-    
-    public static List<File> listSetFiles(String set) throws Exception {
-        return find(getDataDir(set), pngFilter);
-    }
-    
+
     public static class Data {
-        
+
         public final GMatrix x;
         public final GMatrix y;
+        public final Normalized nrm;
 
         public Data(GMatrix x, GMatrix y) {
             this.x = x;
             this.y = y;
+            this.nrm = featureNormalize(this.x);
         }
     }
-    
-    
+
+    public static class TestData {
+        public final GMatrix[] x;
+        public final GMatrix[] y;
+        public final List<File> files;
+
+        public TestData(GMatrix[] x, GMatrix[] y, List<File> files) {
+            this.x = x;
+            this.y = y;
+            this.files = files;
+        }
+    }
+
     public static Data randomInit() {
         int m = 50;
         int inputLayerSize = 2;
@@ -119,102 +179,72 @@ public class TrainDataUtil {
         }
         return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, classes, y));
     }
-    
-    public static Data blackWhiteInit(){
-        double[] white = new double[]{16777215., 16777215., 16777215., 16777215., 16777215., 16777215., 16777215., 16777215.}; 
-        double[] black = new double[]{0., 0., 0., 0., 0., 0., 0., 0.}; 
+
+    public static Data blackWhiteInit() {
+        double[] white = new double[] { 16777215., 16777215., 16777215., 16777215., 16777215., 16777215., 16777215.,
+                16777215. };
+        double[] black = new double[] { 0., 0., 0., 0., 0., 0., 0., 0. };
         int m = 50;
         int inputLayerSize = white.length;
-        int classes =2;
+        int classes = 2;
         double[] x = new double[m * inputLayerSize];
         double[] y = new double[m * classes];
-        for(int i=0;i<m;i++){
-            double[] tmparr = i%2 == 0 ? white : black; 
-            for (int j=0;j<inputLayerSize;j++){
-                x[i*inputLayerSize+j] = tmparr[j];
+        for (int i = 0; i < m; i++) {
+            double[] tmparr = i % 2 == 0 ? white : black;
+            for (int j = 0; j < inputLayerSize; j++) {
+                x[i * inputLayerSize + j] = tmparr[j];
             }
-            y[i*classes]   = i%2 == 0 ? 1. : 0.;
-            y[i*classes+1] = i%2 == 0 ? 0. : 1.;
+            y[i * classes] = i % 2 == 0 ? 1. : 0.;
+            y[i * classes + 1] = i % 2 == 0 ? 0. : 1.;
         }
-        
-        return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, classes, y));
-    }
-    
-    public static Data controlledImageSetInit() throws Exception{
-        List<File> bars = find(getDataDir(TRAINING_DIR, "bars", "72x60"), pngFilter);
-        List<File> nonBars = find(getDataDir(TRAINING_DIR, "non-bars", "72x60"), pngFilter);
-        double[] bars0 = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(bars.get(0)), SMALL_HEIGHT, SMALL_WIDTH))); //bars
-        double[] nonBars1 =longToDoubleArray(imageToGrayscale(resize(ImageIO.read(nonBars.get(0)), SMALL_HEIGHT, SMALL_WIDTH))); //non-bars
-        
-        double[] bars2 = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(bars.get(1)), SMALL_HEIGHT, SMALL_WIDTH))); //bars
-        double[] nonBars3 =longToDoubleArray(imageToGrayscale(resize(ImageIO.read(nonBars.get(1)), SMALL_HEIGHT, SMALL_WIDTH))); //non-bars
-        
-        double[] bars4 = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(bars.get(2)), SMALL_HEIGHT, SMALL_WIDTH))); //bars
-        double[] nonBars5 =longToDoubleArray(imageToGrayscale(resize(ImageIO.read(nonBars.get(2)), SMALL_HEIGHT, SMALL_WIDTH))); //non-bars
-        
-        double[] bars6 = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(bars.get(3)), SMALL_HEIGHT, SMALL_WIDTH))); //bars
-        double[] nonBars7 =longToDoubleArray(imageToGrayscale(resize(ImageIO.read(nonBars.get(3)), SMALL_HEIGHT, SMALL_WIDTH))); //non-bars
-        
-        double[] bars8 = longToDoubleArray(imageToGrayscale(resize(ImageIO.read(bars.get(4)), SMALL_HEIGHT, SMALL_WIDTH))); //bars
-        double[] nonBars9 =longToDoubleArray(imageToGrayscale(resize(ImageIO.read(nonBars.get(4)), SMALL_HEIGHT, SMALL_WIDTH))); //non-bars
-        
-        double[][] imagesArray = new double[][]{bars0, nonBars1, bars2, nonBars3, bars4, nonBars5, bars6, nonBars7, bars8, nonBars9};
-        int inputLayerSize = bars0.length;
-        int m=imagesArray.length*40;
-        int classes = 2;
-        double[] x = new double[m*inputLayerSize];
-        double[] y = new double[m*classes];
-        x = new double[m * inputLayerSize];
-        y = new double[m * classes];
-        for(int i=0;i<m;i++){
-            double[] tmparr = imagesArray[i%imagesArray.length]; 
-            for (int j=0;j<inputLayerSize;j++){
-                x[i*inputLayerSize+j] = tmparr[j];
-            }
-            y[i*classes]   = i%2 == 0 ? 1. : 0.;
-            y[i*classes+1] = i%2 == 0 ? 0. : 1.;
-        }
+
         return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, classes, y));
     }
 
-    public static Data fullImageInit() throws Exception {
-        List<File> filenames = interleaveEntries();
-        int classes = 2;
-        double[] x = new double[filenames.size() * IMAGE_SIZE];
-        double[] y = new double[filenames.size() * classes];
-        for (int l = 0; l < filenames.size(); l++) {
-            StringBuilder sb = new StringBuilder();
-            int cnt = 0;
+    public static Data interlieveTrainData(List<BufferedImage> subsFrames, List<BufferedImage> nonsubsFrames)
+            throws IOException {
+        double[] subsY = new double[] { 1., 0. };
+        double[] nonSubsY = new double[] { 0., 1. };
+        int size = subsFrames.size();
+        int imageSize = subsFrames.get(0).getWidth() * subsFrames.get(0).getHeight();
+        int totalEntries = 4 * size;
+        double[] x = new double[totalEntries * imageSize];
+        double[] y = new double[totalEntries * 2];
+        for (int i = 0; i < size; i++) {
+            double[] subsImage = prepareImage(subsFrames.get(i));
+            double[] nonsubsImage = prepareImage(nonsubsFrames.get(i));
 
-            BufferedImage img = ImageIO.read(filenames.get(l));
-            sb.append(filenames.get(l).getName());
-            int height = img.getHeight();
-            assert height == HEIGHT;
-            for (int i = 0; i < height; i++) {
-                int width = img.getWidth();
-                assert width == WIDTH;
-                for (int j = 0; j < width; j++) {
-                    int pixelInx = l * IMAGE_SIZE + i * height + j;
-                    long grayscale = (long) (img.getRGB(j, i) & 0xffffffffl);
-                    x[pixelInx] = grayscale;
-                    if (cnt < 10) {
-                        sb.append(grayscale).append("[").append(pixelInx).append("]");
-                        cnt++;
-                    }
-                }
-            }
-            for (int i = 0; i < y.length; i++) {
-                if (filenames.get(l).getAbsolutePath().toLowerCase().contains("non-bars")) {
-                    y[i] = 0.;
-                    y[i + 1] = 1.;
-                } else {
-                    y[i] = 1.;
-                    y[i + 1] = 0.;
-                }
-            }
+            int index = i * 4;
+
+            System.arraycopy(subsImage, 0, x, index * imageSize, imageSize);
+            System.arraycopy(subsY, 0, y, index * 2, 2);
+
+            System.arraycopy(subsImage, 0, x, (index+1) * imageSize, imageSize);
+            System.arraycopy(subsY, 0, y, (index+1) * 2, 2);
+            
+            System.arraycopy(subsImage, 0, x, (index+2) * imageSize, imageSize);
+            System.arraycopy(subsY, 0, y, (index+2) * 2, 2);
+            
+            System.arraycopy(nonsubsImage, 0, x, (index + 3) * imageSize, imageSize);
+            System.arraycopy(nonSubsY, 0, y, (index + 3) * 2, 2);
         }
-        return new Data(new GMatrix(filenames.size(), IMAGE_SIZE, x), new GMatrix(filenames.size(), classes, y));
+        return new Data(new GMatrix(totalEntries, imageSize, x), new GMatrix(totalEntries, 2, y));
     }
 
-    
+    public static GMatrix readData(BufferedImage img) {
+        int imageSize = img.getWidth() * img.getHeight();
+        double[] x = prepareImage(img);
+        return new GMatrix(1, imageSize, x);
+    }
+
+    private static double[] prepareImage(BufferedImage img) {
+        byte[] tmp = ((DataBufferByte) (img.getRaster().getDataBuffer())).getData();
+        double[] result = new double[tmp.length];
+        for (int i = 0; i < tmp.length; i++) {
+            long l = tmp[i] & 0xffl;
+            result[i] = (double) l;
+        }
+        return result;
+    }
+
 }

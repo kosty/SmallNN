@@ -38,6 +38,15 @@ public class FileUtil {
         
     };
     
+    public static final FileFilter dirFilter  = new FileFilter() {
+
+        @Override
+        public boolean accept(File f) {
+            return f.isDirectory();
+        }
+        
+    };
+    
     public static List<File> find(File file, FileFilter filter) {
         List<File> result = new ArrayList<File>();
         LinkedList<File> stack = new LinkedList<File>();

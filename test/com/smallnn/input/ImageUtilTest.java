@@ -7,7 +7,7 @@ import static com.smallnn.input.ImageUtil.IMAGE_SIZE;
 import static com.smallnn.input.ImageUtil.SMALL_HEIGHT;
 import static com.smallnn.input.ImageUtil.SMALL_WIDTH;
 import static com.smallnn.input.ImageUtil.WIDTH;
-import static com.smallnn.input.ImageUtil.imageToGrayscale;
+import static com.smallnn.input.ImageUtil.imageToLongArray;
 import static com.smallnn.input.ImageUtil.resize;
 
 import java.awt.Graphics;
@@ -28,8 +28,8 @@ public class ImageUtilTest {
     public void testGrayscale() throws Exception{
         BufferedImage img2 = resize(ImageIO.read(new File(filenames[2])), SMALL_WIDTH, SMALL_HEIGHT);
         BufferedImage img3 = resize(ImageIO.read(new File(filenames[3])), SMALL_WIDTH, SMALL_HEIGHT);
-        long[] second = imageToGrayscale(img2);
-        long[] third = imageToGrayscale(img3);
+        long[] second = imageToLongArray(img2);
+        long[] third = imageToLongArray(img3);
         for (long b: second){
             System.out.print(b+" ");
         }

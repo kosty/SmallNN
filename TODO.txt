@@ -1,0 +1,17 @@
+ - neural network configuration persistance test
+ 
+DONE: reading test-set with single method
+ 
+DONE: precision and recall calculations
+                  Actual values
+                | true  | false |  
+---------------------------------
+Predicted  true |  TP   |   FP  |
+          -----------------------
+ values   false |  FN   |   TN  | 
+---------------------------------
+
+precision (P) = TP/(TP+FP)
+recall    (R) = TP/(TP+FN)
+F1Score       = 2*P*R/(P+R) 
+  

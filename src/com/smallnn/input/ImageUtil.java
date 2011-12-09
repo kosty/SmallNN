@@ -6,6 +6,7 @@ import static com.smallnn.input.FileUtil.filenames;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import java.io.File;
 import java.io.IOException;
@@ -25,12 +26,30 @@ public class ImageUtil {
     public static final int WIDTH = 72;
 
     public static final int IMAGE_SIZE = WIDTH * HEIGHT;
+    
+    public static class Resolution {
+        public final int width;
+        public final int height;
+        public Resolution(int width, int height){
+            this.width = width;
+            this.height = height;
+        }
+    }
 
-    public static long[] imageToGrayscale(BufferedImage img){
-        int[] tmp = ((DataBufferInt) (img.getRaster().getDataBuffer())).getData();
+    public static long[] imageToLongArray(BufferedImage img){
+        byte[] tmp = ((DataBufferByte) (img.getRaster().getDataBuffer())).getData();
         long[] result = new long[tmp.length];
         for(int i=0;i<tmp.length;i++){
-            result[i] = tmp[i] & 0xffffffl;
+            result[i] = tmp[i] & 0xffl;
+        }
+        return result;
+    }
+    
+    public static long[] resizedImageToLongArray(BufferedImage resized) throws Exception {
+        int[] tmp = ((DataBufferInt) (resized.getRaster().getDataBuffer())).getData();
+        long[] result = new long[tmp.length];
+        for(int i=0;i<tmp.length;i++){
+            result[i] = tmp[i] & 0xffffffffl;
         }
         return result;
     }
@@ -44,9 +63,16 @@ public class ImageUtil {
         }
     }
     
+    public static long[] readResizeImage(BufferedImage img, Resolution orig, Resolution fin) throws Exception {
+        if (fin.width == orig.width && fin.height == orig.height)
+            return imageToLongArray(img);
+        
+        return resizedImageToLongArray(resize(img, fin.width, fin.height));
+    }
+    
     public static void printImageVals(BufferedImage src){
         BufferedImage img2 = resize(src, SMALL_WIDTH, SMALL_HEIGHT);
-        long[] second = imageToGrayscale(img2);
+        long[] second = imageToLongArray(img2);
         for (long b: second){
             System.out.print(b+" ");
         }
@@ -82,7 +108,7 @@ public class ImageUtil {
     }
 
     public static BufferedImage resize(BufferedImage image, int width, int height) {
-        BufferedImage resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
         Graphics2D g = resizedImage.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
