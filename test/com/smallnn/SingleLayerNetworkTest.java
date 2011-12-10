@@ -11,10 +11,12 @@ public class SingleLayerNetworkTest {
     public void testActivate(){
         GMatrix theta1 = new GMatrix(1, 2, new double[]{0., 1.});
         GMatrix theta2 = new GMatrix(1, 2, new double[]{0., 1.});
-        SingleLayerNetwork sln = new SingleLayerNetwork(theta1, theta2);
+        GMatrix mu     = new GMatrix(1, 2, new double[]{0., 0.});
+        GMatrix sigma  = new GMatrix(1, 2, new double[]{1., 1.});
+        SingleLayerNetwork sln = new SingleLayerNetwork(mu, sigma, theta1, theta2);
         
         GMatrix x = new GMatrix(4, 1, new double[]{1., 0., -1., 0.5});
-        GMatrix y = new GMatrix(4, 1, new double[]{1., 0.,  0., 1.});
+//        GMatrix y = new GMatrix(4, 1, new double[]{1., 0.,  0., 1.});
         
         sln.activate(x);
         

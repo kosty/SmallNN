@@ -1,12 +1,14 @@
 package com.smallnn;
 
 import static com.smallnn.AlgebraUtil.apply;
+import static com.smallnn.AlgebraUtil.computeNormalizationParams;
 import static com.smallnn.AlgebraUtil.dotProduct;
 import static com.smallnn.AlgebraUtil.mtxLog;
 import static com.smallnn.AlgebraUtil.mtxNeg;
 import static com.smallnn.AlgebraUtil.mtxOneMinus;
 import static com.smallnn.AlgebraUtil.mtxSigmoid;
 import static com.smallnn.AlgebraUtil.mtxSigmoidGradient;
+import static com.smallnn.AlgebraUtil.normalize;
 import static com.smallnn.AlgebraUtil.omitFirstColumn;
 import static com.smallnn.AlgebraUtil.prependColumn;
 import static com.smallnn.AlgebraUtil.product;
@@ -15,7 +17,6 @@ import static com.smallnn.AlgebraUtil.substract;
 import static com.smallnn.AlgebraUtil.sumAllSquared;
 import static com.smallnn.AlgebraUtil.sumRows;
 import static com.smallnn.AlgebraUtil.transpose;
-import static com.smallnn.input.ImageUtil.IMAGE_SIZE;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,10 +32,9 @@ public class SingleLayerNetwork implements NeuralNetwork {
     
     private static final double COST_PRECISSION = 1e-6;
 
-//    public static final int NUM_TRIES = 2;
     Random r = new Random();
 
-    int inputSize = IMAGE_SIZE;
+    int inputSize = 72*40;
     int classes = 2;
     int features = 40;
 
@@ -46,13 +46,11 @@ public class SingleLayerNetwork implements NeuralNetwork {
     GMatrix A2;
     GMatrix Z3;
     GMatrix A3;
+    
+    GMatrix mu;
+    GMatrix sigma;
 
     boolean numericGradients = false;
-    
-    public SingleLayerNetwork(){
-        theta1 = initTheta(this.features, this.inputSize + 1);
-        theta2 = initTheta(this.classes, this.features + 1);
-    }
     
     public SingleLayerNetwork(int features, int classes, int inputSize){
         this.features = features;
@@ -62,59 +60,55 @@ public class SingleLayerNetwork implements NeuralNetwork {
         theta2 = initTheta(this.classes, this.features + 1);
     }
     
-    public SingleLayerNetwork(GMatrix theta1, GMatrix theta2){
+    public SingleLayerNetwork(GMatrix mu, GMatrix sigma, GMatrix theta1, GMatrix theta2){
         assert theta1.getNumCol() > 1; // There is at least one input, apart from bias unit
         assert theta2.getNumCol() > 1; // There is at least one hidden unit, apart from bias unit;
         assert theta1.getNumRow() +1 == theta2.getNumCol(); // number of hidden units match in both theta matrices
+        assert mu.getNumCol() == theta1.getNumCol()-1;
+        assert sigma.getNumCol() == theta1.getNumCol()-1;
         this.theta1 = theta1;
         this.theta2 = theta2;
+        this.mu = mu;
+        this.sigma = sigma;
         this.features = this.theta1.getNumRow();
         this.classes  = this.theta2.getNumRow();
         this.inputSize = this.theta1.getNumCol()-1;
     }
-
-
+    
     @Override
     public Double[] train(GMatrix x, GMatrix y, double lambda, double alpha) throws Exception {
-
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
-//        double[] stepCosts = new double[numberOfSteps];
+        GMatrix[] muSigmaX = computeNormalizationParams(x);
+        this.mu = muSigmaX[0];
+        this.sigma = muSigmaX[1];
+        x = muSigmaX[2];
         List<Double> stepCosts = new ArrayList<Double>();
 
         double previousCost = Double.MAX_VALUE;
-        double diff = Double.MAX_VALUE;
-//        for (int k = 0; k < numberOfSteps; k++) {
-        int k = 0;
-
-        while (diff > COST_PRECISSION){
+        for (int k=0; k < 1000; k++){
             double cost = computeCost(x, y, lambda);
-            GMatrix[] gradients = computeGradients(x, y, lambda);
-            diff = previousCost - cost;
-            if (diff < COST_PRECISSION){
-                continue;
+            if (previousCost - cost < COST_PRECISSION){
+                break;
             }
             previousCost = cost;
 
+            GMatrix[] gradients = computeGradients(x, y, lambda);
             if (numericGradients)
-                compareWithNumericGradients(gradients[0], gradients[1], x, y, theta1, theta2, 1);
+                compareWithNumericGradients(gradients[0], gradients[1], x, y, mu, sigma, theta1, theta2, 1);
 
-//            stepCosts[k] = cost;
             stepCosts.add(cost);
 
             theta1.sub(scalarProduct(gradients[0], alpha));
             theta2.sub(scalarProduct(gradients[1], alpha));
-            k++;
-            if (k>1000)
-                break;
         }
         Double[] result = new Double[stepCosts.size()];
         stepCosts.toArray(result);
         return result;
     }
 
-    private void compareWithNumericGradients(GMatrix grad1, GMatrix grad2, GMatrix x_mtx, GMatrix y_mtx,
-            GMatrix theta1, GMatrix theta2, int lambda) {
+    private static void compareWithNumericGradients(GMatrix grad1, GMatrix grad2, GMatrix x, GMatrix y,
+            GMatrix mu, GMatrix sigma, GMatrix theta1, GMatrix theta2, int lambda) {
         double epsilon = 0.0001;
         GMatrix theta1_eps = new GMatrix(grad1.getNumRow(), grad1.getNumCol());
         theta1_eps.set(theta1);
@@ -125,9 +119,9 @@ public class SingleLayerNetwork implements NeuralNetwork {
             for (int j = 1; j < grad1.getNumCol(); j++) {
                 double theta_i_j = theta1_eps.getElement(i, j);
                 theta1_eps.setElement(i, j, theta_i_j + epsilon);
-                double plusCost = new SingleLayerNetwork(theta1_eps, theta2).computeCost(x_mtx, y_mtx, lambda);
+                double plusCost = new SingleLayerNetwork(mu, sigma, theta1_eps, theta2).computeCost(x, y, lambda);
                 theta1_eps.setElement(i, j, theta_i_j - epsilon);
-                double minusCost = new SingleLayerNetwork(theta1_eps, theta2).computeCost(x_mtx, y_mtx, lambda);
+                double minusCost = new SingleLayerNetwork(mu, sigma, theta1_eps, theta2).computeCost(x, y, lambda);
                 double numericcGrad = (plusCost - minusCost) / (2 * epsilon);
                 double analyticGrad = grad1.getElement(i, j);
                 
@@ -143,10 +137,10 @@ public class SingleLayerNetwork implements NeuralNetwork {
                 double theta_i_j = theta2_eps.getElement(i, j);
                 
                 theta2_eps.setElement(i, j, theta_i_j + epsilon);
-                double plusCost = new SingleLayerNetwork(theta1, theta2_eps).computeCost(x_mtx, y_mtx, lambda);
+                double plusCost = new SingleLayerNetwork(mu, sigma, theta1, theta2_eps).computeCost(x, y, lambda);
                 
                 theta2_eps.setElement(i, j, theta_i_j - epsilon);
-                double minusCost = new SingleLayerNetwork(theta1, theta2_eps).computeCost(x_mtx, y_mtx, lambda);
+                double minusCost = new SingleLayerNetwork(mu, sigma, theta1, theta2_eps).computeCost(x, y, lambda);
                 double numericcGrad = (plusCost - minusCost) / (2 * epsilon);
                 double analyticGrad = grad2.getElement(i, j);
                 
@@ -180,7 +174,7 @@ public class SingleLayerNetwork implements NeuralNetwork {
     }
     
     private double computeCost(GMatrix x, GMatrix y, double lambda){
-        activate(x);
+        doActivate(x);
         int m = x.getNumRow();
         /* Start computing the value function J, case1 corresponds values marked as 1 in training data
          * case1 = -Y .* log(A3);
@@ -261,11 +255,13 @@ public class SingleLayerNetwork implements NeuralNetwork {
         return new GMatrix[]{grad1, grad2};
     }
 
-    /* (non-Javadoc)
-     * @see com.smallnn.NeuralNetwork#activate(javax.vecmath.GMatrix)
-     */
+
     @Override
-    public void activate(GMatrix x) {
+    public GMatrix activate(GMatrix x) {
+        return doActivate(normalize(this.mu, this.sigma, x));
+    }
+    
+    public GMatrix doActivate(GMatrix x) {
         GMatrix theta1_t = transpose(theta1);
         GMatrix theta2_t = transpose(theta2);
 
@@ -293,15 +289,13 @@ public class SingleLayerNetwork implements NeuralNetwork {
          * A3 = sigmoid(Z3);
          */
         A3 = apply(Z3, mtxSigmoid);
-    }
-    
-    @Override
-    public GMatrix getOutput(){
+        
         return A3;
     }
     
     @Override
     public GMatrix[] getConfig(){
-        return new GMatrix[]{theta1, theta2};
+        return new GMatrix[]{mu, sigma, theta1, theta2};
     }
+
 }

@@ -1,11 +1,13 @@
 package com.smallnn;
 
 import static com.smallnn.AlgebraUtil.apply;
+import static com.smallnn.AlgebraUtil.computeNormalizationParams;
 import static com.smallnn.AlgebraUtil.dotProduct;
 import static com.smallnn.AlgebraUtil.mtxLog;
 import static com.smallnn.AlgebraUtil.mtxNeg;
 import static com.smallnn.AlgebraUtil.mtxOneMinus;
 import static com.smallnn.AlgebraUtil.mtxSigmoid;
+import static com.smallnn.AlgebraUtil.normalize;
 import static com.smallnn.AlgebraUtil.omitFirstColumn;
 import static com.smallnn.AlgebraUtil.prependColumn;
 import static com.smallnn.AlgebraUtil.product;
@@ -32,9 +34,14 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
     private int classes;
     private int inputSize;
     
+    GMatrix mu;
+    GMatrix sigma;
+    
     /* Learning rate for gradient descent */
     double alpha = 0.001;
     boolean numericGradients = false;
+    
+    
     
     public NoHiddenLayerNetwork(int classes, int inputSize){
         this.classes  = classes;
@@ -42,9 +49,13 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
         theta1 = initTheta(this.classes, this.inputSize + 1);
     }
     
-    public NoHiddenLayerNetwork(GMatrix theta1){
+    public NoHiddenLayerNetwork(GMatrix mu, GMatrix sigma, GMatrix theta1){
         assert theta1.getNumCol() > 1; // There is at least one input, apart from bias unit
+        assert mu.getNumCol() == theta1.getNumCol()-1;
+        assert sigma.getNumCol() == theta1.getNumCol()-1;
         this.theta1 = theta1;
+        this.mu = mu;
+        this.sigma = sigma;
         this.classes  = this.theta1.getNumRow();
         this.inputSize = this.theta1.getNumCol()-1;
     }
@@ -53,6 +64,10 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
     public Double[] train(GMatrix x, GMatrix y, double lambda, double alpha) throws Exception {
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
+        GMatrix[] muSigmaX = computeNormalizationParams(x);
+        this.mu = muSigmaX[0];
+        this.sigma = muSigmaX[1];
+        x = muSigmaX[2];
         List<Double> stepCosts = new ArrayList<Double>();
 
         double previousCost = Double.MAX_VALUE;
@@ -67,7 +82,7 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
             previousCost = cost;
 
             if (numericGradients)
-                compareWithNumericGradients(gradients[0], x, y, theta1, 1);
+                compareWithNumericGradients(gradients[0], x, y, mu, sigma, theta1, 1);
 
             stepCosts.add(cost);
 
@@ -79,7 +94,11 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
     }
 
     @Override
-    public void activate(GMatrix x) {
+    public GMatrix activate(GMatrix x) {
+        return doActivate(normalize(this.mu, this.sigma, x));
+    }
+    
+    private GMatrix doActivate(GMatrix x){
         GMatrix theta1_t = transpose(theta1);
 
         /* Prepend bias unit
@@ -96,20 +115,17 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
          * A3 = sigmoid(Z2);
          */
         A2 = apply(Z2, mtxSigmoid);
-    }
-
-    @Override
-    public GMatrix getOutput() {
+        
         return A2;
     }
     
     @Override
     public GMatrix[] getConfig(){
-        return new GMatrix[]{theta1};
+        return new GMatrix[]{mu, sigma, theta1};
     }
     
     private double computeCost(GMatrix x, GMatrix y, double lambda){
-        activate(x);
+        doActivate(x);
         int m = x.getNumRow();
         /* Start computing the value function J, case1 corresponds values marked as 1 in training data
          * case1 = -Y .* log(A3);
@@ -170,7 +186,7 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
         return new GMatrix[]{grad1};
     }
     
-    private void compareWithNumericGradients(GMatrix grad1, GMatrix x_mtx, GMatrix y_mtx, GMatrix theta1, int lambda) {
+    private void compareWithNumericGradients(GMatrix grad1, GMatrix x_mtx, GMatrix y_mtx, GMatrix mu, GMatrix sigma, GMatrix theta1, int lambda) {
         double epsilon = 0.0001;
         GMatrix theta1_eps = new GMatrix(grad1.getNumRow(), grad1.getNumCol());
         theta1_eps.set(theta1);
@@ -181,9 +197,9 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
             for (int j = 1; j < grad1.getNumCol(); j++) {
                 double theta_i_j = theta1_eps.getElement(i, j);
                 theta1_eps.setElement(i, j, theta_i_j + epsilon);
-                double plusCost = new NoHiddenLayerNetwork(theta1_eps).computeCost(x_mtx, y_mtx, lambda);
+                double plusCost = new NoHiddenLayerNetwork(mu, sigma, theta1_eps).computeCost(x_mtx, y_mtx, lambda);
                 theta1_eps.setElement(i, j, theta_i_j - epsilon);
-                double minusCost = new NoHiddenLayerNetwork(theta1_eps).computeCost(x_mtx, y_mtx, lambda);
+                double minusCost = new NoHiddenLayerNetwork(mu, sigma, theta1_eps).computeCost(x_mtx, y_mtx, lambda);
                 double numericcGrad = (plusCost - minusCost) / (2 * epsilon);
                 double analyticGrad = grad1.getElement(i, j);
                 

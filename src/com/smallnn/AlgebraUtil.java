@@ -324,13 +324,7 @@ public class AlgebraUtil {
         return z;
     }
     
-    public static GMatrix featureNormalize(GMatrix x_orig, Normalized norm) {
-        GMatrix x_mean = substractVector(x_orig, norm.mu);
-        
-        return scalarVectorDivide(x_mean, norm.sigma);
-    }
-
-    public static Normalized featureNormalize(GMatrix X) {
+    public static GMatrix[] computeNormalizationParams(GMatrix X) {
         /* mu = mean(X); */
         GMatrix mu = mean(X);
         /* X_norm = X - kron(mu, ones(m, 1)); */
@@ -340,18 +334,11 @@ public class AlgebraUtil {
         GMatrix sigma = std(X_mean);
         /* X_norm = X_norm ./ kron(sigma, ones(m, 1)); */
         GMatrix X_norm = scalarVectorDivide(X_mean, sigma);
-        return new Normalized(X_norm, mu, sigma);
+        return new GMatrix[]{mu, sigma, X_norm};
     }
     
-    public static class Normalized {
-        public final GMatrix values;
-        GMatrix mu;
-        GMatrix sigma;
-
-        public Normalized(GMatrix vals, GMatrix mu, GMatrix sigma) {
-            this.values = vals;
-            this.mu = mu;
-            this.sigma = sigma;
-        }
+    public static GMatrix normalize(GMatrix mu, GMatrix sigma, GMatrix x){
+        GMatrix xMinusMean = substractVector(x, mu);
+        return scalarVectorDivide(xMinusMean, sigma);
     }
 }

@@ -22,7 +22,7 @@ public class NNMain {
         
         System.out.println("Preparing test data...");
         Data data = getData(kit, res, res, BOOST_LEVEL);
-        TestData testData = getTestData(kit, res, res, data.nrm);
+        TestData testData = getTestData(kit, res, res);
 
         NeuralNetwork nn = new SingleLayerNetwork(30, data.y.getNumCol(), data.x.getNumCol());
         
@@ -43,7 +43,7 @@ public class NNMain {
         
 
         /* Regularization cost: 1 */
-        Double[] trainingCosts = nn.train(data.nrm.values, data.y, 1., alpha);
+        Double[] trainingCosts = nn.train(data.x, data.y, 1., alpha);
         double traintime = (System.currentTimeMillis() - startTime) / 1000.;
         System.out.println("Training time: " + traintime + " sec; " + (traintime / trainingCosts.length) + " sec per train, total train iterations: "+trainingCosts.length);
         return trainingCosts;
@@ -54,8 +54,7 @@ public class NNMain {
         
         long astartTime = System.currentTimeMillis();
         for(int j=0;j<testData.x.length;j++){
-            nn.activate(testData.x[j]);
-            GMatrix vectorize = vectorize(nn.getOutput());
+            GMatrix vectorize = vectorize(nn.activate(testData.x[j]));
 
             if (compare(testData.y[j], vectorize)) {
                 if (Math.abs(testData.y[j].getElement(0, 0)) == 1){

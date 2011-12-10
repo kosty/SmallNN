@@ -1,15 +1,12 @@
 package com.smallnn.input;
 
-import static com.smallnn.AlgebraUtil.featureNormalize;
 import static com.smallnn.input.FileUtil.dirFilter;
 import static com.smallnn.input.FileUtil.find;
 import static com.smallnn.input.FileUtil.pngFilter;
 import static com.smallnn.input.FileUtil.tildeExpand;
-import static com.smallnn.input.ImageUtil.imageToLongArray;
-import static com.smallnn.input.ImageUtil.readResizeImage;
+import static com.smallnn.input.ImageUtil.imageToDoubleArray;
 
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +16,6 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import javax.vecmath.GMatrix;
 
-import com.smallnn.AlgebraUtil.Normalized;
 import com.smallnn.input.ImageUtil.Resolution;
 
 public class TrainDataUtil {
@@ -32,14 +28,6 @@ public class TrainDataUtil {
         File[] listFiles = tildeExpand(path).listFiles(dirFilter);
         return Arrays.asList(listFiles);
     }
-
-    public static double[] longToDoubleArray(long[] arr) {
-        double[] result = new double[arr.length];
-        for (int i = 0; i < arr.length; i++) {
-            result[i] = (double) arr[i];
-        }
-        return result;
-    }
     
     public static Data getSingleClassData(String kitPath, Resolution orig, int boostLevel) throws Exception {
         List<File> trainingFileSet = interleaveTrainingClasses(kitPath, TRAINING_DIR, orig.width + "x" + orig.height);
@@ -51,7 +39,7 @@ public class TrainDataUtil {
         
         for (int i = 0; i < m; i++) {
             File f = trainingFileSet.get(i % trainingFileSet.size());
-            double[] image = longToDoubleArray(imageToLongArray(ImageIO.read(f)));
+            double[] image = imageToDoubleArray(ImageIO.read(f));
             System.arraycopy(image, 0, x, i * inputLayerSize, inputLayerSize);
 
             y[i] = i%2 == 0 ? 1. : 0.;
@@ -71,7 +59,7 @@ public class TrainDataUtil {
 
         for (int i = 0; i < m; i++) {
             File f = trainingFileSet.get(i % trainingFileSet.size());
-            double[] image = longToDoubleArray(readResizeImage(ImageIO.read(f), orig, fin));
+            double[] image = imageToDoubleArray(ImageIO.read(f));
             System.arraycopy(image, 0, x, i * inputLayerSize, inputLayerSize);
 
             double[] expectedClass = new double[classes];
@@ -82,12 +70,7 @@ public class TrainDataUtil {
         return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, classes, y));
     }
 
-    public static GMatrix readResizeData(BufferedImage img, Resolution orig, Resolution fin) throws Exception {
-        double[] image = longToDoubleArray(readResizeImage(img, orig, fin));
-        return new GMatrix(1, fin.width * fin.height, image);
-    }
-
-    public static TestData getTestData(String kitPath, Resolution orig, Resolution fin, Normalized nrm)
+    public static TestData getTestData(String kitPath, Resolution orig, Resolution fin)
             throws Exception {
         List<File> files = interleaveTrainingClasses(kitPath, TEST_DIR, orig.width + "x" + orig.height);
         GMatrix[] x_norms = new GMatrix[files.size()];
@@ -96,7 +79,8 @@ public class TrainDataUtil {
         for (int i = 0; i < files.size(); i++) {
             BufferedImage img = ImageIO.read(files.get(i));
 
-            x_norms[i] = featureNormalize(readResizeData(img, orig, fin), nrm);
+            double[] image = imageToDoubleArray(img);
+            x_norms[i] = new GMatrix(1, fin.width * fin.height, image);
 
             double[] y_test = new double[classes];
             Arrays.fill(y_test, 0.);
@@ -135,12 +119,10 @@ public class TrainDataUtil {
 
         public final GMatrix x;
         public final GMatrix y;
-        public final Normalized nrm;
 
         public Data(GMatrix x, GMatrix y) {
             this.x = x;
             this.y = y;
-            this.nrm = featureNormalize(this.x);
         }
     }
 
@@ -156,7 +138,7 @@ public class TrainDataUtil {
         }
     }
 
-    public static Data randomInit() {
+    public static Data randomData() {
         int m = 50;
         int inputLayerSize = 2;
         int classes = 2;
@@ -180,7 +162,7 @@ public class TrainDataUtil {
         return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, classes, y));
     }
 
-    public static Data blackWhiteInit() {
+    public static Data blackWhiteData() {
         double[] white = new double[] { 16777215., 16777215., 16777215., 16777215., 16777215., 16777215., 16777215.,
                 16777215. };
         double[] black = new double[] { 0., 0., 0., 0., 0., 0., 0., 0. };
@@ -211,8 +193,8 @@ public class TrainDataUtil {
         double[] x = new double[totalEntries * imageSize];
         double[] y = new double[totalEntries * 2];
         for (int i = 0; i < size; i++) {
-            double[] subsImage = prepareImage(subsFrames.get(i));
-            double[] nonsubsImage = prepareImage(nonsubsFrames.get(i));
+            double[] subsImage = imageToDoubleArray(subsFrames.get(i));
+            double[] nonsubsImage = imageToDoubleArray(nonsubsFrames.get(i));
 
             int index = i * 4;
 
@@ -233,18 +215,8 @@ public class TrainDataUtil {
 
     public static GMatrix readData(BufferedImage img) {
         int imageSize = img.getWidth() * img.getHeight();
-        double[] x = prepareImage(img);
+        double[] x = imageToDoubleArray(img);
         return new GMatrix(1, imageSize, x);
-    }
-
-    private static double[] prepareImage(BufferedImage img) {
-        byte[] tmp = ((DataBufferByte) (img.getRaster().getDataBuffer())).getData();
-        double[] result = new double[tmp.length];
-        for (int i = 0; i < tmp.length; i++) {
-            long l = tmp[i] & 0xffl;
-            result[i] = (double) l;
-        }
-        return result;
     }
 
 }
