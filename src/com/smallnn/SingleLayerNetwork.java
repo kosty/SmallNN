@@ -1,3 +1,20 @@
+/**
+ *  This file is part of SmallNN, a small neural network implementation
+ *  Copyright (C) 2011, 2012 Arsen Kostenko <arsen.kostenko@gmail.com>
+ *     
+ *  SmallNN is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  SmallNN is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with SmallNN.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package com.smallnn;
 
 import static com.smallnn.AlgebraUtil.apply;
@@ -17,6 +34,8 @@ import static com.smallnn.AlgebraUtil.substract;
 import static com.smallnn.AlgebraUtil.sumAllSquared;
 import static com.smallnn.AlgebraUtil.sumRows;
 import static com.smallnn.AlgebraUtil.transpose;
+import static java.util.Arrays.binarySearch;
+import static java.util.Arrays.sort;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +49,11 @@ import javax.vecmath.GMatrix;
  */
 public class SingleLayerNetwork implements NeuralNetwork {
     
-    private static final double COST_PRECISSION = 1e-6;
+    private static final int PRECISION_QUEUE_SIZE = 5;
+
+    private static final int MAX_TRAIN_ITERATIONS = 5000;
+
+    private static final double PRECISSION = 1e-9;
 
     Random r = new Random();
 
@@ -79,25 +102,31 @@ public class SingleLayerNetwork implements NeuralNetwork {
     public Double[] train(GMatrix x, GMatrix y, double lambda, double alpha) throws Exception {
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
+        LearningRates learningRates = new LearningRates(alpha);
         GMatrix[] muSigmaX = computeNormalizationParams(x);
         this.mu = muSigmaX[0];
         this.sigma = muSigmaX[1];
         x = muSigmaX[2];
         List<Double> stepCosts = new ArrayList<Double>();
-
-        double previousCost = Double.MAX_VALUE;
-        for (int k=0; k < 1000; k++){
-            double cost = computeCost(x, y, lambda);
-            if (previousCost - cost < COST_PRECISSION){
+        PushOutQueue recentCosts = new PushOutQueue(PRECISION_QUEUE_SIZE, Double.MAX_VALUE);
+        
+        for (int k=0; k < MAX_TRAIN_ITERATIONS; k++){
+            recentCosts.add(computeCost(x, y, lambda));
+            if (isPreciseEnough(recentCosts)){
                 break;
             }
-            previousCost = cost;
+            
+            if (isPecissionGoingUp(recentCosts)){
+                System.out.println("Lowering learning rate with neighboring costs: "+ recentCosts.peek(PRECISION_QUEUE_SIZE-2)+", "+ recentCosts.peek(PRECISION_QUEUE_SIZE-1));
+                alpha = learningRates.getLowerRate();
+            }
+            
 
             GMatrix[] gradients = computeGradients(x, y, lambda);
             if (numericGradients)
                 compareWithNumericGradients(gradients[0], gradients[1], x, y, mu, sigma, theta1, theta2, 1);
 
-            stepCosts.add(cost);
+            stepCosts.add(recentCosts.peek(PRECISION_QUEUE_SIZE-1));
 
             theta1.sub(scalarProduct(gradients[0], alpha));
             theta2.sub(scalarProduct(gradients[1], alpha));
@@ -105,6 +134,17 @@ public class SingleLayerNetwork implements NeuralNetwork {
         Double[] result = new Double[stepCosts.size()];
         stepCosts.toArray(result);
         return result;
+    }
+
+    private boolean isPecissionGoingUp(PushOutQueue recentCosts) {
+        return recentCosts.peek(PRECISION_QUEUE_SIZE-2) - recentCosts.peek(PRECISION_QUEUE_SIZE-1) < 0;
+    }
+
+    private boolean isPreciseEnough(PushOutQueue recentCosts) {
+        for(int i=0;i<PRECISION_QUEUE_SIZE-1;i++)
+            if (recentCosts.peek(i)-recentCosts.peek(i+1) > PRECISSION)
+                return false;
+        return true;
     }
 
     private static void compareWithNumericGradients(GMatrix grad1, GMatrix grad2, GMatrix x, GMatrix y,
@@ -296,6 +336,23 @@ public class SingleLayerNetwork implements NeuralNetwork {
     @Override
     public GMatrix[] getConfig(){
         return new GMatrix[]{mu, sigma, theta1, theta2};
+    }
+    
+    public static class LearningRates {
+        //double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03, 0.009, 0.006, 0.003, 0.0009, 0.0006, 0.0003};
+        double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03};
+        int idx=0;
+        
+        public LearningRates(double r){
+            sort(rates);
+            idx = binarySearch(rates, r);
+        }
+        
+        public double getLowerRate(){
+            if (idx > 0)
+                idx--;
+            return rates[idx];
+        }
     }
 
 }

@@ -1,3 +1,20 @@
+/**
+ *  This file is part of SmallNN, a small neural network implementation
+ *  Copyright (C) 2011, 2012 Arsen Kostenko <arsen.kostenko@gmail.com>
+ *     
+ *  SmallNN is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  SmallNN is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with SmallNN.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package com.smallnn.input;
 
 import java.awt.Graphics2D;
@@ -48,6 +65,14 @@ public class ImageUtil {
             System.err.println(imageFile);
             return null;
         }
+    }
+    
+    public static BufferedImage zealousSubsCrop(BufferedImage img){
+        int initialHeight = img.getHeight();
+        int initialWidth  = img.getWidth();
+        int newHeight = initialHeight/2;
+        int newWidth  = initialWidth/2;
+        return img.getSubimage(newWidth/2, newHeight, newWidth, newHeight);
     }
 
     public static BufferedImage resize(BufferedImage image, int width, int height) {

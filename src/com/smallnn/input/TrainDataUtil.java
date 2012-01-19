@@ -1,3 +1,20 @@
+/**
+ *  This file is part of SmallNN, a small neural network implementation
+ *  Copyright (C) 2011, 2012 Arsen Kostenko <arsen.kostenko@gmail.com>
+ *     
+ *  SmallNN is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  SmallNN is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with SmallNN.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package com.smallnn.input;
 
 import static com.smallnn.input.FileUtil.dirFilter;
@@ -5,6 +22,7 @@ import static com.smallnn.input.FileUtil.find;
 import static com.smallnn.input.FileUtil.pngFilter;
 import static com.smallnn.input.FileUtil.tildeExpand;
 import static com.smallnn.input.ImageUtil.imageToDoubleArray;
+import static com.smallnn.input.ImageUtil.zealousSubsCrop;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -27,6 +45,25 @@ public class TrainDataUtil {
     public static List<File> getSubDirs(String path) {
         File[] listFiles = tildeExpand(path).listFiles(dirFilter);
         return Arrays.asList(listFiles);
+    }
+    
+    public static Data getSingleClassCroppedData(String kitPath, Resolution orig, int boostLevel) throws Exception {
+        List<File> trainingFileSet = interleaveTrainingClasses(kitPath, TRAINING_DIR, orig.width + "x" + orig.height);
+        int inputLayerSize = (orig.width/2) * (orig.height/2);
+        int m = trainingFileSet.size()*boostLevel;
+        
+        double[] x = new double[m * inputLayerSize];
+        double[] y = new double[m];
+        
+        for (int i = 0; i < m; i++) {
+            File f = trainingFileSet.get(i % trainingFileSet.size());
+            double[] image = imageToDoubleArray(zealousSubsCrop(ImageIO.read(f)));
+            System.arraycopy(image, 0, x, i * inputLayerSize, inputLayerSize);
+
+            y[i] = i%2 == 0 ? 1. : 0.;
+        }
+        
+        return new Data(new GMatrix(m, inputLayerSize, x), new GMatrix(m, 1, y));
     }
     
     public static Data getSingleClassData(String kitPath, Resolution orig, int boostLevel) throws Exception {

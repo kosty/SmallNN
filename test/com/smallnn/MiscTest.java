@@ -17,14 +17,21 @@
  */
 package com.smallnn;
 
-import javax.vecmath.GMatrix;
+import static java.util.Arrays.binarySearch;
+import static junit.framework.Assert.assertEquals;
 
-public interface NeuralNetwork {
+import java.util.Arrays;
 
-    Double[] train(GMatrix x, GMatrix y, double lambda, double learningRate) throws Exception;
+import org.junit.Test;
 
-    GMatrix activate(GMatrix x);
+public class MiscTest {
 
-    GMatrix[] getConfig();
+    @Test
+    public void test() {
+        double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03, 0.009, 0.006, 0.003, 0.0009, 0.0006, 0.0003};
+        Arrays.sort(rates);
+        int idx = binarySearch(rates, 0.6d);
+        assertEquals(2, idx);
+    }
 
 }

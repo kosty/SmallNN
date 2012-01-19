@@ -17,14 +17,29 @@
  */
 package com.smallnn;
 
-import javax.vecmath.GMatrix;
+import java.util.Arrays;
 
-public interface NeuralNetwork {
+public class PushOutQueue {
+    
+    double[] queue;
+    
+    public PushOutQueue(int size, double v){
+        this.queue = new double[size];
+        Arrays.fill(this.queue, v);
+    }
+    
+    public void add(double d){
+        pushOut();
+        this.queue[this.queue.length-1] = d;
+    }
 
-    Double[] train(GMatrix x, GMatrix y, double lambda, double learningRate) throws Exception;
-
-    GMatrix activate(GMatrix x);
-
-    GMatrix[] getConfig();
+    private void pushOut() {
+        for(int i=0; i < this.queue.length-1; i++)
+            this.queue[i] = this.queue[i+1];
+    }
+    
+    public double peek(int idx){
+        return this.queue[idx];
+    }
 
 }
