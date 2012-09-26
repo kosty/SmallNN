@@ -18,9 +18,8 @@
 package com.smallnn;
 
 import static java.util.Arrays.binarySearch;
+import static java.util.Arrays.sort;
 import static junit.framework.Assert.assertEquals;
-
-import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -29,9 +28,8 @@ public class MiscTest {
     @Test
     public void test() {
         double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03, 0.009, 0.006, 0.003, 0.0009, 0.0006, 0.0003};
-        Arrays.sort(rates);
-        int idx = binarySearch(rates, 0.6d);
-        assertEquals(2, idx);
+        sort(rates);
+        assertEquals(10, binarySearch(rates, 0.6d));
     }
 
 }

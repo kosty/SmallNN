@@ -42,7 +42,9 @@ import javax.vecmath.GMatrix;
 
 public class NoHiddenLayerNetwork implements NeuralNetwork {
     
-    private static final double COST_PRECISSION = 1e-30;
+    private static final int MAX_ITERATIONS = 5000;
+
+    private static final double PRECISSION = 1e-30;
 
     private GMatrix theta1;
     private GMatrix X1;
@@ -54,8 +56,8 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
     GMatrix mu;
     GMatrix sigma;
     
-    /* Learning rate for gradient descent */
-    double alpha = 0.001;
+    /* Learning rate for gradient descent, a.k.a. alpha */
+    double LEARNING_RATE = 0.001;
     boolean numericGradients = false;
     
     
@@ -79,6 +81,15 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
 
     @Override
     public Double[] train(GMatrix x, GMatrix y, double lambda, double alpha) throws Exception {
+        return train(x, y, lambda, alpha, PRECISSION, MAX_ITERATIONS);
+    }
+    
+    @Override
+    public Double[] train(GMatrix x, GMatrix y, double precission, int maxIterations) throws Exception {
+        return train(x, y, 1, LEARNING_RATE, precission, maxIterations);
+    }
+
+    private Double[] train(GMatrix x, GMatrix y, double lambda, double alpha, double precission, int maxIterations) {
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
         GMatrix[] muSigmaX = computeNormalizationParams(x);
@@ -89,11 +100,12 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
 
         double previousCost = Double.MAX_VALUE;
         double diff = Double.MAX_VALUE;
-        while (diff > COST_PRECISSION){
+        int iteration = 0;
+        while (diff > PRECISSION && iteration < maxIterations){
             double cost = computeCost(x, y, lambda);
             GMatrix[] gradients = computeGradients(x, y, lambda);
             diff = previousCost - cost;
-            if (diff < COST_PRECISSION){
+            if (diff < PRECISSION){
                 continue;
             }
             previousCost = cost;
@@ -104,6 +116,7 @@ public class NoHiddenLayerNetwork implements NeuralNetwork {
             stepCosts.add(cost);
 
             theta1.sub(scalarProduct(gradients[0], alpha));
+            iteration++;
         }
         Double[] result = new Double[stepCosts.size()];
         stepCosts.toArray(result);

@@ -21,10 +21,31 @@ import javax.vecmath.GMatrix;
 
 public interface NeuralNetwork {
 
+    /**
+     * 
+     * @param x
+     * @param y
+     * @param lambda
+     * @param learningRate
+     * @return
+     * @throws Exception
+     */
     Double[] train(GMatrix x, GMatrix y, double lambda, double learningRate) throws Exception;
+    
+    
+    Double[] train(GMatrix x, GMatrix y, double precission, int maxIterations) throws Exception;
 
+    /**
+     * 
+     * @param x
+     * @return
+     */
     GMatrix activate(GMatrix x);
 
+    /**
+     * 
+     * @return
+     */
     GMatrix[] getConfig();
 
 }

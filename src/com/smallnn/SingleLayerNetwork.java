@@ -36,6 +36,7 @@ import static com.smallnn.AlgebraUtil.sumRows;
 import static com.smallnn.AlgebraUtil.transpose;
 import static java.util.Arrays.binarySearch;
 import static java.util.Arrays.sort;
+import static junit.framework.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,10 +51,6 @@ import javax.vecmath.GMatrix;
 public class SingleLayerNetwork implements NeuralNetwork {
     
     private static final int PRECISION_QUEUE_SIZE = 5;
-
-    private static final int MAX_TRAIN_ITERATIONS = 5000;
-
-    private static final double PRECISSION = 1e-9;
 
     Random r = new Random();
 
@@ -75,6 +72,12 @@ public class SingleLayerNetwork implements NeuralNetwork {
 
     boolean numericGradients = false;
     
+    /**
+     * 
+     * @param features
+     * @param classes
+     * @param inputSize
+     */
     public SingleLayerNetwork(int features, int classes, int inputSize){
         this.features = features;
         this.classes  = classes;
@@ -83,12 +86,19 @@ public class SingleLayerNetwork implements NeuralNetwork {
         theta2 = initTheta(this.classes, this.features + 1);
     }
     
+    /**
+     * 
+     * @param mu
+     * @param sigma
+     * @param theta1
+     * @param theta2
+     */
     public SingleLayerNetwork(GMatrix mu, GMatrix sigma, GMatrix theta1, GMatrix theta2){
-        assert theta1.getNumCol() > 1; // There is at least one input, apart from bias unit
-        assert theta2.getNumCol() > 1; // There is at least one hidden unit, apart from bias unit;
-        assert theta1.getNumRow() +1 == theta2.getNumCol(); // number of hidden units match in both theta matrices
-        assert mu.getNumCol() == theta1.getNumCol()-1;
-        assert sigma.getNumCol() == theta1.getNumCol()-1;
+        assertTrue(theta1.getNumCol() > 1); // There is at least one input, apart from bias unit
+        assertTrue(theta2.getNumCol() > 1); // There is at least one hidden unit, apart from bias unit;
+        assertTrue(theta1.getNumRow() +1 == theta2.getNumCol()); // number of hidden units match in both theta matrices
+        assertTrue(mu.getNumCol() == theta1.getNumCol()-1);
+        assertTrue(sigma.getNumCol() == theta1.getNumCol()-1);
         this.theta1 = theta1;
         this.theta2 = theta2;
         this.mu = mu;
@@ -98,8 +108,24 @@ public class SingleLayerNetwork implements NeuralNetwork {
         this.inputSize = this.theta1.getNumCol()-1;
     }
     
+    private static final int MAX_TRAIN_ITERATIONS = 5000;
+    private static final double PRECISSION = 1e-9;
+    
     @Override
     public Double[] train(GMatrix x, GMatrix y, double lambda, double alpha) throws Exception {
+        System.out.println("Training for learning!");
+        return train(x, y, lambda, alpha, PRECISSION, MAX_TRAIN_ITERATIONS);
+    }
+    
+    
+    
+    @Override
+    public Double[] train(GMatrix x, GMatrix y, double precission, int maxIterations) throws Exception {
+        System.out.println("Training for precission!");
+        return train(x, y, 1, 1.3d, precission, maxIterations);
+    }
+
+    private Double[] train(GMatrix x, GMatrix y, double lambda, double alpha, double precission, int maxIterations) throws Exception {
         assert this.inputSize == x.getNumCol();
         assert this.classes == y.getNumCol();
         LearningRates learningRates = new LearningRates(alpha);
@@ -110,9 +136,9 @@ public class SingleLayerNetwork implements NeuralNetwork {
         List<Double> stepCosts = new ArrayList<Double>();
         PushOutQueue recentCosts = new PushOutQueue(PRECISION_QUEUE_SIZE, Double.MAX_VALUE);
         
-        for (int k=0; k < MAX_TRAIN_ITERATIONS; k++){
+        for (int k=0; k < maxIterations; k++){
             recentCosts.add(computeCost(x, y, lambda));
-            if (isPreciseEnough(recentCosts)){
+            if (isPreciseEnough(recentCosts, precission)){
                 break;
             }
             
@@ -140,9 +166,9 @@ public class SingleLayerNetwork implements NeuralNetwork {
         return recentCosts.peek(PRECISION_QUEUE_SIZE-2) - recentCosts.peek(PRECISION_QUEUE_SIZE-1) < 0;
     }
 
-    private boolean isPreciseEnough(PushOutQueue recentCosts) {
+    private boolean isPreciseEnough(PushOutQueue recentCosts, double precission) {
         for(int i=0;i<PRECISION_QUEUE_SIZE-1;i++)
-            if (recentCosts.peek(i)-recentCosts.peek(i+1) > PRECISSION)
+            if (recentCosts.peek(i)-recentCosts.peek(i+1) > precission)
                 return false;
         return true;
     }
@@ -199,6 +225,12 @@ public class SingleLayerNetwork implements NeuralNetwork {
         System.out.format("diff == %.14f\n", diff);
     }
 
+    /**
+     * 
+     * @param outputLayerSize
+     * @param inputLayerSize
+     * @return
+     */
     public static GMatrix initTheta(int outputLayerSize, int inputLayerSize) {
         double init_epsilon = 1;
         /* Math.sqrt(6.) / Math.sqrt(outputLayerSize + inputLayerSize); */
@@ -213,6 +245,13 @@ public class SingleLayerNetwork implements NeuralNetwork {
         return mtx;
     }
     
+    /**
+     * 
+     * @param x
+     * @param y
+     * @param lambda
+     * @return
+     */
     private double computeCost(GMatrix x, GMatrix y, double lambda){
         doActivate(x);
         int m = x.getNumRow();
@@ -339,8 +378,8 @@ public class SingleLayerNetwork implements NeuralNetwork {
     }
     
     public static class LearningRates {
-        //double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03, 0.009, 0.006, 0.003, 0.0009, 0.0006, 0.0003};
-        double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03};
+        double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03, 0.009, 0.006, 0.003, 0.0009, 0.0006, 0.0003};
+        //double[] rates = {1.3, 0.9, 0.6, 0.3, 0.09, 0.06, 0.03};
         int idx=0;
         
         public LearningRates(double r){
